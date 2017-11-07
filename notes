@@ -1,0 +1,9 @@
+export LD_LIBRARY_PATH = $LD_LIBRARY_PATH:.
+
+example:
+
+$ gcc -c fPIC mem.c
+$ gcc -shared fPIC mem.o -o libmem.so
+
+
+$ g++ app.cpp -o app -L. -lfunc
