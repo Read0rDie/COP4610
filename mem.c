@@ -10,7 +10,6 @@
 #define MIN_BLOCK_SIZE 32
 
 //memory block macros
-
 #define block_link(lb, rb) \
 	rb->previous = lb; \
 	lb->next = rb;
