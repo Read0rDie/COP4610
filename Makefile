@@ -5,7 +5,7 @@ test_objects = test.o
 objects = mem.o
 
 $(output) : $(test_objects) $(lib_objects)
-	$(CC)  test.c -lmem -L. -o $(output)
+	$(CC)  test.c -lmem -L. -o $(output) -Wl,-rpath=${LD_LIBRARY_PATH}:.
 
 $(lib_objects) : $(objects)
 	$(CC) -shared -o $(lib_objects) $(objects)
