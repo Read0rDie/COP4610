@@ -1,15 +1,17 @@
+CC = gcc
 output = memtest
 lib_objects = libmem.so
+test_objects = test.o
 objects = mem.o
 
-$(output) : $(lib_objects)
-	gcc main.c -lmem -L -o $(output)
+$(output) : $(test_objects) $(lib_objects)
+        $(CC)  test.c -lmem -L. -o $(output)
 
-$(lib_objects) : $(objects) 
-	gcc -shared -o $(output) $(objects)
-	
-mem.o : mem.c
-	gcc -c -fpic mem.c
+$(lib_objects) : $(objects)
+        $(CC) -shared -o $(lib_objects) $(objects)
+
+$(objects) : mem.c
+        $(CC) -c -fpic mem.c
 
 clean :
-	-rm -f $(output) *.o  core *~ 
+        -rm -f $(output) *.o  *.a *.so core *~
