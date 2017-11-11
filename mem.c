@@ -9,13 +9,12 @@
 
 #define PAGE_SIZE (sysconf(_SC_PAGESIZE))
 #define MIN_BLOCK_SIZE 32
-#define null 0
 
 //memory block macros
 #define block_ptr(ptr) ((uint8_t*)ptr)
 #define shift_ptr(ptr,size) (block_ptr(ptr)+size)
 #define shift_block_ptr(block, size) ((mem_block*)(shift_ptr(block,size)))
-#define block_data(block) (shift_ptr(block, sizeof(size_t)))
+#define block_data(block) (shift_ptr(block, sizeof(MIN_BLOCK_SIZE)))
 #define data_block(ptr) (shift_block_ptr(ptr, sizeof(size_t)))
 #define block_end(block) (shift_block_ptr(block, block->size))
 #define block_metadata(block) (block_ptr(block)-sizeof(size_t))
@@ -23,6 +22,12 @@
 #define block_link(lb, rb) \
 	rb->previous = lb; \
 	lb->next = rb;
+
+#define block_rlink(lb, rb) \
+	lb->next = rb;
+
+#define block_llink(lb,rb) \
+	rb->previous = lb;
 
 #define block_link_lswap(lb, b) \
 	block_link(b->previous, lb); \
@@ -46,6 +51,10 @@
 	block_link(new, old->next); \
 	block_link(old, new);
 
+#define insert_block_end(old, new) \
+	block_rlink(new, old->next); \
+	block_link(old, new);
+
 typedef struct mem_block_t
 {
 	size_t size;
@@ -54,7 +63,7 @@ typedef struct mem_block_t
 	struct mem_block_t *next;
 } mem_block;
 
-mem_block* start;
+mem_block* start = NULL;
 mem_block* end;
 int aPolicy;
 
@@ -72,6 +81,7 @@ int Mem_IsValid(void* ptr);
 int Get_Size(void* ptr);
 float Get_Fragmentation();
 mem_block* Check_Memory(mem_block* block);
+mem_block* IsAllocated(mem_block* block);
 void Merge();
 int Largest_Chunk_Size();
 int Total_FreeMemory();
@@ -81,22 +91,34 @@ void Merge()
 	mem_block* current = start;
 	while(current != end)
 	{	
-		if(current->next != NULL)
-		{
-			if(current->next->status != 1)
-			{
-				int newSize = current->size + current->next->size;
-				current->size = newSize;
-				block_link(current, current->next->next);
+		if(current->status != 1){
+			if(current->next != end)
+			{	
+				if(current->next->status != 1)
+				{
+					int newSize = current->size + current->next->size;
+					current->size = newSize;
+					if(current->next->next != end)
+					{
+						block_link(current, current->next->next);
+					} else	{
+						block_rlink(current, current->next->next);
+					}
+				}
 			}
-		}
-		if(current->previous != NULL)
-		{
-			if(current->previous->status != 1)
+			if(current->previous != NULL)
 			{
-				int newSize = current->size + current->previous->size;
-				current->size = newSize;
-				block_link(current->previous->previous, current);
+				if(current->previous->status != 1)
+				{
+					int newSize = current->size + current->previous->size;
+					current->previous->size = newSize;					
+					if(current->next != end)
+					{
+						block_link(current->previous, current->next);
+					} else 	{
+						block_rlink(current->previous, current->next);
+					} 
+				}
 			}
 		}
 		current = current->next;
@@ -109,11 +131,19 @@ mem_block* Check_Memory(mem_block* block)
 	mem_block* found = NULL;
 	while(temp != end)
 	{
-		if(block >= temp)
+		if(block >= temp && block <= temp->next)
 			found = temp;
 		temp = temp->next;
 	}
 	return found;
+}
+
+mem_block* IsAllocated(mem_block* block)
+{
+	mem_block* found  = Check_Memory(block);
+	if(found != NULL && found->status != 0)
+		return found;
+	return NULL;
 }
 
 int Get_Opt_Size(int size)
@@ -142,7 +172,12 @@ mem_block* Split_Block(mem_block* block, size_t size)
 		mem_block* newBlock = shift_block_ptr(block, size);
 		newBlock->size = remainder;
 		newBlock->status = 0;
-		insert_block(block, newBlock);
+		if(block->next != end){
+			insert_block(block, newBlock);
+		}
+		else{
+			insert_block_end(block, newBlock);
+		}
 		block->size = size;
 		block->status = 1;
 	} else
@@ -158,25 +193,25 @@ mem_block* Find_Block(size_t size)
 	mem_block* temp = start;
 	while(temp != end)
 	{
-		if(temp->size >= size && temp->size >= size)
+		if(temp->size >= size && temp->status != 1)
 			return Split_Block(temp, size);
 		temp  = temp->next;
 	}
 	return NULL;
 }
 
-mem_block* Find_Smallest_Block(size_t size){
-
+mem_block* Find_Smallest_Block(size_t size)
+{
 	mem_block* temp = start;
 	mem_block* smallest = NULL;
 	while(temp != end)
 	{
 		if(smallest == NULL)
 		{
-			if(temp->size >= size)
+			if(temp->size >= size && temp->status != 1)
 				smallest = temp;
 		}
-		else if(temp->size <= smallest->size && temp->size >= size)
+		else if(temp->size <= smallest->size && temp->size >= size && temp->status != 1) 
 		{
 			smallest = temp;
 			
@@ -193,14 +228,14 @@ mem_block* Find_Largest_Block(size_t size){
 	mem_block* temp = start;
 	mem_block* largest = NULL;
 
-	while(temp !=end)
+	while(temp != end)
 	{
 		if(largest == NULL)
 		{
-			if(temp->size >= size)
+			if(temp->size >= size  && temp->status != 1)
 				largest = temp;
 		}
-		else if (temp->size >= largest->size && temp-> size >= size)
+		else if (temp->size >= largest->size && temp-> size >= size && temp->status != 1)
 		{
 			largest = temp;
 		}
@@ -213,8 +248,8 @@ mem_block* Find_Largest_Block(size_t size){
 
 int Largest_Chunk_Size()
 {
-	mem_block* temp;
-	mem_block* largest = start;
+	mem_block* temp = start;
+	mem_block* largest = NULL;
 	while(temp != end)
 	{
 		if(largest == NULL)
@@ -248,7 +283,8 @@ int Total_Free_Memory()
 
 int Mem_Init(int size, int policy)
 {
-	
+	if(start != NULL)
+		return -1;	
 	int pages;
 	void *ptr;
 	aPolicy = policy;
@@ -257,12 +293,12 @@ int Mem_Init(int size, int policy)
 	pages = Get_Init_Size(size);
 	ptr = mmap(NULL, pages, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 	start = (mem_block*)ptr;
-	start->next = end;
 	start->previous = NULL;
-	start->size = size;
+	start->size = pages;
+	end = block_end(start);
+	block_rlink(start, end);
 	start->status = 0;
-//	block_data(start);
-	end = block_end(start);	
+	block_data(start);
 	if(ptr == MAP_FAILED)
 	{
 		perror("mmap");
@@ -285,29 +321,26 @@ void* Mem_Alloc(int size)
 	{
 		case 0:
 			newBlock = Find_Block(optSize);
-//			block_data(newBlock);
 			break;
 		case 1:
 			newBlock = Find_Smallest_Block(optSize);
-//			block_data(newBlock); 
 			break;
 		case 2:
 			newBlock = Find_Largest_Block(optSize);
-//			block_data(newBlock);
 			break;
 		default:
 			return NULL;
 			
 	}
-	return (void*)newBlock;	
+	return (void*)newBlock;
 }
 
 
 int Mem_Free(void *ptr)
 {
-	if(Mem_IsValid((mem_block*)ptr))
+	mem_block* free = NULL;
+	if(free = IsAllocated((mem_block*)ptr))
 	{
-		mem_block* free = Check_Memory((mem_block*)ptr);
 		free->status = 0;
 		Merge();
 		return 0;
@@ -339,6 +372,5 @@ float Mem_GetFragmentation()
 	int total = Total_Free_Memory();
 	if(total == 0)
 		return 1;
-	return ((float)chunk/ (float)total);
-	
+	return ((float)chunk/ (float)total);	
 }
