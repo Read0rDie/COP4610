@@ -18,7 +18,7 @@ void myfree(void* p)
   if(!Mem_Free(p)) printf("  success (f=%g)\n", Mem_GetFragmentation());
   else printf("  failed\n");
 }
-  
+
 int main(int argc, char* argv[])
 {
   myalloc(1000);
@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     printf("  unable to initialize memory allocator!\n");
     return -1;
   } else printf("  success!\n");
-    
+
   printf("init memory allocator, again...");
   if(Mem_Init(REGION_SIZE, MEM_POLICY_FIRSTFIT) < 0)
     printf("  failed, but this is expected behavior!\n");
@@ -59,6 +59,7 @@ int main(int argc, char* argv[])
   myfree(x5+10);
   myfree(p4);
   myfree(p5);
-  
+
   return 0;
 }
+
