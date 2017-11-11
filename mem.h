@@ -56,4 +56,7 @@ int Mem_GetSize(void* ptr);
  * memory.  If the fragmentation factor is 1, it means there’s no          
  * fragmentation (i.e., there’s only one free chunk); if it is close       
  * to 0, the entire free memory is fragmented among small chunks. If       
- * "mem.h" 62L, 2883C                                                         
+ * there’s no more free memory, this function returns 1. */
+float Mem_GetFragmentation();
+
+#endif /*MEM_H*/                                                        
