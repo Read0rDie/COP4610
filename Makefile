@@ -14,4 +14,6 @@ $(objects) : mem.c
         $(CC) -c -fpic mem.c
 
 clean :
-        -rm -f $(output) *.o  *.a *.so core *~
+	-rm -f $(output) *.o  *.a *.so core *~
+
+
